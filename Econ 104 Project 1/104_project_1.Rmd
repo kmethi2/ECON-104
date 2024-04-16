@@ -1,0 +1,306 @@
+---
+title: "104_Project_1"
+author: "Krish Methi, Krithik S"
+date: "1/18/2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load in the data from AER Package
+
+```{r}
+data("BostonHousing")
+df <- BostonHousing[-c(4,12)]
+```
+
+# Step 1: Descriptive analysis of each variable
+
+## Dataset as a whole
+
+The Boston Housing dataset provides information on the details of various factors that may affect the median value of owner-occupied homes in different neighborhoods in boston, with the response variable being the median house price in thousands of dollars. In this dataset, there is originally 506 observations of 14 variables, however we have eliminated two columns so the dataset we are analyzing has 506 observations of 12 variables. These variables include things such as property tax, rooms, crime rates and so on, factors that may impact the value of these homes. 
+
+## MedV
+
+```{r}
+summary(df$medv)
+boxplot(BostonHousing$medv, main = "Boxplot of Boston Median House Value", xlab = "Median House Value in thousands")
+medv_hist <- hist(df$medv, main = "Histogram of Boston Median House Value", xlab = "Median House Value in thousands", ylab = "Frequency")
+xfit <- seq(min(df$medv), max(df$medv), length = 100)
+yfit <- dnorm(xfit, mean = mean(df$medv), sd = sd(df$medv))
+yfit <- yfit * diff(medv_hist$mids[1:2]) * length(df$medv)
+lines(xfit, yfit, col = "red", lwd = 2)
+
+```
+Comments: Medv refers to the median owner Boston house value in thousands, which is our response variable in this dataset. From the histogram, we can see that the data is roughly skewed to the right, with one main peak around in between 20-25 thousand. There doesn't seem to be a big outlier present from the histogram. Looking at the fitted red line normal curve, we can see the distribution somewhat resembles a normal distribution, but not fully. From the boxplot, we can see that the median is pretty much right in between the interquartile range, which suggests there might not be a great deal of skewness in the data. However we can see that from the box plot, there are quite a bit of outliers on the high side of the data. From the 5 number summary, we can identify the IQR of 17.02 thousand to 25 thousand dollars, and the median and mean of 21.20 and 22.53 thousand respectively, with a min of 5,000 and a max of 50,000, a range of 45,000 dollars
+
+
+
+## Crim
+
+```{r}
+summary(df$crim)
+crim_hist <- hist(df$crim, main = "Histogram of Per Capita Crime Rate", xlab = "Per Capita Crime Rate")
+xfit <- seq(min(df$crim), max(df$crim), length = 100)
+yfit <- dnorm(xfit, mean = mean(df$crim), sd = sd(df$crim))
+yfit <- yfit * diff(crim_hist$mids[1:2]) * length(df$crim)
+lines(xfit, yfit, col = "red", lwd = 2)
+boxplot(df$crim, main = "Boxplot of Per Capita Crime Rate", xlab = "Per Capita Crime Rate")
+plot(df$crim, df$medv, main = "Scatterplot of Median Price compared to Per Capita Crime Rate", xlab = "Per Capita Crime Rate", ylab = "Median Value of owner-occupied homes in Thousands")
+```
+Comments: The Crim variable refers to the per capita crime rate by town, one of the predictors in the dataset. From the histogram, we can clearly see that the data is majorly right skewed, with one major peak between 0-10 per capita crime rate. There seem to be many outliers towards the right side of the histogram. With the fitted red line normal curve, that doesn't really give us too much information with the massive skewness. Looking at the box plot, we can see the Interquartile range box, with the median well at the front, also suggesting the major right skewness of the data, and we can see the large number of outliers in the data. Looking at the 5 number summary, we have the median and mean at 0.25651 and 3.61352, and we have the IQR from 0.08204 to 3.67708. And we can see that the range is very big. Looking at the scatterplot, we can start to see a trend of as the crime rate increases, the median house value decreases. We can see here that the range is quite large, around 88 crimes per capita, however most observations have a rate under 0.1. 
+
+
+## ZN
+
+```{r}
+summary(df$zn)
+zn_hist <- hist(df$zn, main = "Histogram of the Proportion of residential land zoned", xlab = " Percentage of residential land zoned for lots over 25,000 sq. ft")
+xfit <- seq(min(df$zn), max(df$zn), length = 100)
+yfit <- dnorm(xfit, mean = mean(df$zn), sd = sd(df$zn))
+yfit <- yfit * diff(zn_hist$mids[1:2]) * length(df$zn)
+lines(xfit, yfit, col = "red", lwd = 2)
+boxplot(df$zn, main = "boxplot of the Proportion of residential land zoned", xlab = "Percentage of residential land zoned for lots over 25,000 sq. ft")
+plot(df$zn, df$medv, main = "Scatterplot of Median Price compared to the Proportion of residential land zoned", xlab = "Percentage of residential land zoned", ylab = "Median Value of owner-occupied homes in Thousands")
+```
+Comments: The Zm variable refers to the proportion of residential land zoned for lots over 25,000 sq.ft, one of the predictors in the dataset. From the histogram, we can clearly see that the data is majorly right skewed, with one major peak between 0-10 percent. There seem to be many outliers towards the right side of the histogram. With the fitted normal red curve, we can see that the data doesn't resemble a normal distribution at all, with heavy right skewness. Looking at the box plot, we can see the Interquartile range box, with the median well at the front, also suggesting the major right skewness of the data, and we can see the large number of outliers in the data. Looking at the 5 number summary, we have the median and mean at 0 and 11.36%, and we have the IQR from 0 to 12.50 percent And we can see that the range is very big, encompassing areas that have none and all the land home to houses with an area above 25,000 square feet. Looking at the scatterplot, there isn't too much of a trend, however there is a slight positive association that as the proportion of residential land for houses over 25,000 sq ft increase, the median house value increases. Seeing how the median is at 0 is also indication that there are a lot of houses in areas where there are no houses above 25,000 sq ft.   
+
+## INDUS
+
+```{r}
+summary(df$indus)
+indus_hist <- hist(df$indus, main = "Histogram of the proportion of nonretail business acres per town", xlab = "proportion of nonretail business acres per town")
+xfit <- seq(min(df$indus), max(df$indus), length = 100)
+yfit <- dnorm(xfit, mean = mean(df$indus), sd = sd(df$indus))
+yfit <- yfit * diff(indus_hist$mids[1:2]) * length(df$indus)
+lines(xfit, yfit, col = "red", lwd = 2)
+boxplot(df$indus, main = "Boxplot of the proportion of nonretail business acres per town", xlab = "proportion of nonretail business acres per town")
+plot(df$indus, df$medv, main = "Scatterplot of Median Price compared to the proportion of nonretail business acres per town", xlab = "proportion of nonretail business acres per town", ylab = "Median Value of owner-occupied homes in Thousands")
+```
+Comments: The indus variable refers to the proportion of non retail business acres per town, in percentage, one of the predictors in the dataset. From the histogram, the data looks slightly rightly skewed, with one major peak of between 15-20 percent. There doesn't seem to be too many outliers at first glance from the histogram. With the fitted normal red curve, we can see the data doesn't really resemble a normal distribution, however it seems to be more symmetric than the previous variables. Looking at the box plot, we can see the Interquartile range box, with the median not completely in the middle, also suggesting the major right skewness of the data, and we can see that there are no outliers in the data. Looking at the 5 number summary, we have the median and mean at 9.69 and 11.14 percent, and we have the IQR from 5.19 to 18.10. Looking at the scatterplot, we can start to see a slight trend of as the percentage of nonretail business acres per town increase, the median house value decreases. 
+
+
+## NOX
+```{r}
+summary(df$nox)
+nox_hist <- hist(df$nox, main = "Histogram of nitric oxides concentration", xlab = "nitric oxides concentration (parts per 10 million)")
+xfit <- seq(min(df$nox), max(df$nox), length = 100)
+yfit <- dnorm(xfit, mean = mean(df$nox), sd = sd(df$nox))
+yfit <- yfit * diff(nox_hist$mids[1:2]) * length(df$nox)
+lines(xfit, yfit, col = "red", lwd = 2)
+boxplot(df$nox, main = "Boxplot of nitric oxides concentration", xlab = "nitric oxides concentration (parts per 10 million)")
+plot(df$nox, df$medv, main = "Scatterplot of Median Price compared to the nitric oxides concentration", xlab = "nitric oxides concentration", ylab = "Median Value of owner-occupied homes in Thousands")
+```
+Comments: The nox variable refers to the nitric oxides concentration in parts per 10 million, one of the predictors in the dataset. From the histogram, the data looks relatively symmetrical, with some potential right skewness, with a couple of peaks from 0.4-0.45 and 0.5 to 0.55 . There doesn't seem to be too many outliers at first glance from the histogram except one observation towards the right side. With the fitted normal distribution curve, we can see that the curve aligns somewhat well with the data, but not completely, suggesting some symmetric nature. Looking at the box plot, we can see the Interquartile range box, with the median essentially right in the middle, also suggesting symmetrical data, and we can see that there are no outliers in the data. Looking at the 5 number summary, we have the median and mean at 0.538 and 0.5547 parts per 10 million, and we have the IQR from 0.449 to 0.624 Looking at the scatterplot, we can start to see a trend of as the nitric oxides concentration increases, the median house value decreases. 
+
+
+## RM
+```{r}
+summary(df$rm)
+rm_hist <- hist(df$rm, main = "histogram of the average number of rooms per dwelling", xlab = "average number of rooms per dwelling")
+xfit <- seq(min(df$rm), max(df$rm), length = 100)
+yfit <- dnorm(xfit, mean = mean(df$rm), sd = sd(df$rm))
+yfit <- yfit * diff(rm_hist$mids[1:2]) * length(df$rm)
+lines(xfit, yfit, col = "red", lwd = 2)
+boxplot(df$rm, main = "boxplot of the average number of rooms per dwelling", xlab = "average number of rooms per dwelling")
+plot(df$rm, df$medv, main = "Scatterplot of Median Price compared to the average number of rooms per dwelling", xlab = "average number of rooms per dwelling", ylab = "Median Value of owner-occupied homes in Thousands")
+```
+
+Comments: The rm variable refers to the average number of rooms per dwelling, one of the predictors in the dataset. From the histogram, the data looks relatively symmetrical with a hint of right skewness, with one main peak in between 6-7 rooms. However, there seems to be a number outliers at first glance from the histogram as the distribution is quite narrow towards both sides. With the fitted normal distribution curve, we can see that the curve actually aligns really well with the data, potentially suggesting a symmetric distribution. Looking at the box plot, we can see the Interquartile range box, with the median slighly towards the bottom side, suggesting some potential right skewness, and we can see that there are quite a number of outliers on both sides. Looking at the 5 number summary, we have the median and mean at 6.208 and 6.285 rooms, and we have the IQR from 5.886 to 6.623. Looking at the scatterplot, we can see a pretty clear trend, as the average number of rooms per dwelling increases, the median house value increases. This logically and economically makes sense. 
+
+## AGE
+```{r}
+summary(df$age)
+age_hist <- hist(df$age, main = "Histogram of the proportion of owner-occupied units built prior to 1940", xlab = "proportion of owner-occupied units built prior to 1940")
+xfit <- seq(min(df$age), max(df$age), length = 100)
+yfit <- dnorm(xfit, mean = mean(df$age), sd = sd(df$age))
+yfit <- yfit * diff(age_hist$mids[1:2]) * length(df$age)
+lines(xfit, yfit, col = "red", lwd = 2)
+boxplot(df$age, main = "boxplot of the proportion of owner-occupied units built prior to 1940", xlab = "proportion of owner-occupied units built prior to 1940")
+plot(df$age, df$medv, main = "Scatterplot of Median Price compared to the proportion of owner-occupied units built prior to 1940", xlab = "proportion of owner-occupied units built prior to 1940", ylab = "Median Value of owner-occupied homes in Thousands")
+```
+Comments: The age variable refers to the proportion of owner-occupied units built prior to 1940, one of the predictors in the dataset. From the histogram, the data looks heavily left skewed, with the main peak all the way on the right side between 80-100 percent. There doesn't seem to be too many outliers at first glance from the histogram. With the fitted normal distribution curve, we can seee that the curve does not really align well with the data, with the massive skewness. Looking at the box plot, we can see the Interquartile range box, with the median towards the top side, suggesting some  left skewness, and we can see that there are no outliers in the data from the boxplot. Looking at the 5 number summary, we have the median and mean at 77.5 and 68.57 percent, and we have the IQR from 45.02 to 94.08 percent, quite a large range. Looking at the scatterplot, there isn't too much of a trend evident, but the slight trend seems to say that as the proportion of owner-occupied units built prior to 1940 increases, the median house value decreases. 
+
+## DIS
+```{r}
+summary(df$dis)
+dis_hist <- hist(df$dis, main = "Histogram of weighted distances to five boston employment centers", xlab = "weighted distances to five Boston employment centers")
+xfit <- seq(min(df$dis), max(df$dis), length = 100)
+yfit <- dnorm(xfit, mean = mean(df$dis), sd = sd(df$dis))
+yfit <- yfit * diff(dis_hist$mids[1:2]) * length(df$dis)
+lines(xfit, yfit, col = "red", lwd = 2)
+boxplot(df$dis, main = "boxplot of weighted distances to five boston employment centers", xlab = "weighted distances to five Boston employment centers")
+plot(df$dis, df$medv, main = "Scatterplot of Median Price compared to the weighted distances to five Boston employment centers", xlab = "weighted distances to five Boston employment centers", ylab = "Median Value of owner-occupied homes in Thousands")
+```
+Comments: The dis variable refers to the weighted distances to five Boston emplyment centers one of the predictors in the dataset. From the histogram, the data looks right skewed, with the main peaks all the way on the left side between 0-3 miles. There seems to be outliers towards the right side of the histogram. With the fitted normal distribution curve, we can see that the data slightly fits the curve, however not really. Looking at the box plot, we can see the Interquartile range box, with the median towards the bottom side, suggesting some right skewness as well, and we can see that there are a couple outliers in the data on the higher side from the boxplot. Looking at the 5 number summary, we have the median and mean at 3.207 and 3.795 miles, and we have the IQR from 2.1 to 5.188 miles. Looking at the scatterplot, there isn't too much of a trend evident, but the slight trend seems to say that as the weighted distances to five boston employment centers increases, the median house value increases.  
+
+## RAD
+```{r}
+summary(df$rad)
+rad_hist <- hist(df$rad, main = "Histogram of the index of access to radial highways",  xlab = "index of access to radial highways")
+xfit <- seq(min(df$rad), max(df$rad), length = 100)
+yfit <- dnorm(xfit, mean = mean(df$rad), sd = sd(df$rad))
+yfit <- yfit * diff(rad_hist$mids[1:2]) * length(df$rad)
+lines(xfit, yfit, col = "red", lwd = 2)
+boxplot(df$rad,  main = "Boxplot of the index of access to radial highways", xlab = "index of access to radial highways")
+plot(df$rad, df$medv, main = "Scatterplot of Median Price compared to the index of access to radial highways", xlab = "index of access to radial highways", ylab = "Median Value of owner-occupied homes in Thousands")
+```
+
+Comments: The rad variable refers to the index of access to radial highways, one of the predictors in the dataset. From the histogram, it's a little difficult to tell the skewness of the data, with such a massive gap and peaks beteen 2-7 and above 20. There seems to be outliers towards the right side of the histogram, however with the massive frequency, we are not certain. With the fitted normal distribution curve, we can see that the data does not really fit the normal curve. Looking at the box plot, we can see the Interquartile range box, with the median way towards the bottom side, suggesting a lot right skewness, and we can see that there are no outliers identified from the boxplot. Looking at the 5 number summary, we have the median and mean at 5 and 9.549, and we have the IQR from 4 to 24 miles. Looking at the scatterplot, the slight trend indicates that as the index of access to radial highways increases, the median house value decreases, however it is not clear with the massive gap and the volatility seeming to be constant. 
+
+## TAX
+```{r}
+summary(df$tax)
+tax_hist <- hist(df$tax, main = "Histogram of the property tax rate per $10,000",  xlab = "full-value property tax rate per $10,000")
+xfit <- seq(min(df$tax), max(df$tax), length = 100)
+yfit <- dnorm(xfit, mean = mean(df$tax), sd = sd(df$tax))
+yfit <- yfit * diff(tax_hist$mids[1:2]) * length(df$tax)
+lines(xfit, yfit, col = "red", lwd = 2)
+boxplot(df$tax,  main = "Boxplot of the property tax rate per $10,000", xlab = "full-value property tax rate per $10,000")
+plot(df$tax, df$medv, main = "Scatterplot of Median Price compared to the full-value property tax rate per $10,000", xlab = "full-value property tax rate per $10,000", ylab = "Median Value of owner-occupied homes in Thousands")
+```
+Comments: The tax variable refers to the full-value property tax rate per $10,000, one of the predictors in the dataset. From the histogram, its hard to tell the skewness in the data, as there is a gap in the data from 500-650 dollars roughly. Potentially the right side after the gap may be considered as outliers. There are some main peaks from 250-350 dollars and on the right side 650-700 dollars. With the fitted normal distribution curve, we can see that the curve does not really fit the data well in this case, with the gap  in the data and the big outlier peak. Looking at the box plot, we can see the Interquartile range box, with the median towards the bottom side, suggesting heavy right skewness, and we can see that there are no outliers according to the boxplot. Looking at the 5 number summary, we have the median and mean at 330 and 408.2 dollars, and we have the IQR from 279 to 666 dollars Looking at the scatterplot, there isn't too much of a trend evident, other than the gap the data looks relatively random. 
+
+
+## PTRATIO
+```{r}
+summary(df$ptratio)
+ptratio_hist <- hist(df$ptratio, main = "Histogram of Pupil-Teacher ratio by town", xlab = "pupil-teacher ratio by town")
+xfit <- seq(min(df$ptratio), max(df$ptratio), length = 100)
+yfit <- dnorm(xfit, mean = mean(df$ptratio), sd = sd(df$ptratio))
+yfit <- yfit * diff(ptratio_hist$mids[1:2]) * length(df$ptratio)
+lines(xfit, yfit, col = "red", lwd = 2)
+boxplot(df$ptratio,  main = "Histogram of Pupil-Teacher ratio by town", xlab = "pupil-teacher ratio by town")
+plot(df$ptratio, df$medv, main = "Scatterplot of Median Price compared to the pupil-teacher ratio by town", xlab = "pupil-teacher ratio by town", ylab = "Median Value of owner-occupied homes in Thousands")
+```
+Comments: The ptratio variable refers to the Pupil-Teacher ratio by town, one of the predictors in the dataset. From the histogram, the data seems left skewed, and there is a tiny gap in the data from 13-14. Potentially the left side observations may be considered as outliers. There one main peak on the right side at 20-21. With the fitted normal distribution curve, we can see that other than the big peak at 20-21, the curve actually fits the data decently well. Looking at the box plot, we can see the Interquartile range box, with the median slightly towards the top side, suggesting left skewness, and we can see that there are a couple outliers towards the lower end according to the boxplot. Looking at the 5 number summary, we have the median and mean at 19.05 and 18.46 dollars, and we have the IQR from 17.4 to 20.2 dollars Looking at the scatterplot, we can see a slight trend that as the pupil teacher ratio increases, the median value of the owner-occupied homes decreases. 
+
+
+## LSTAT
+
+```{r}
+summary(df$lstat)
+lstat_hist <- hist(df$lstat, main = "Histogram of the percentage of lower status individuals of the population", xlab = "% lower status of the population")
+xfit <- seq(min(df$lstat), max(df$lstat), length = 100)
+yfit <- dnorm(xfit, mean = mean(df$lstat), sd = sd(df$lstat))
+yfit <- yfit * diff(lstat_hist$mids[1:2]) * length(df$lstat)
+lines(xfit, yfit, col = "red", lwd = 2)
+boxplot(df$lstat, main = "Histogram of the percentage of lower status individuals of the population", xlab = "% lower status of the population")
+plot(df$lstat, df$medv, main = "Scatterplot of Median Price compared to the % lower status of the population", xlab = "% lower status of the population", ylab = "Median Value of owner-occupied homes in Thousands")
+```
+Comments: The Lstat variable refers to the percentage of lower status individuals in the population, one of the predictors in the dataset. From the histogram, the data seems right skewed. Potentially there may be some outliers on the right side. There are a couple main peaks at 5-15 percent. With the fitted normal distribution curve, we can see that the curve actually fits the data pretty well, suggesting a pretty symmetric distribution. Looking at the box plot, we can see the Interquartile range box, with the median slightly towards the bottom side, suggesting some right skewness, and we can see that there are a couple outliers towards the top end according to the boxplot. Looking at the 5 number summary, we have the median and mean at 11.36 and 12.65 percent, and we have the IQR from 6.95 to 16.95 perfent Looking at the scatterplot, we can see a pretty clear trend that as the percentage of lower status people in the population increase, the median value of the owner-occupied homes decreases. Again, this makes economic sense as well. 
+
+
+# Step 2: multiple linear regression model with the main effects
+
+```{r}
+reg.mod <- lm(df$medv ~., data = df)
+summary(reg.mod)
+```
+
+In terms of the statistical and economic significance, we can see that the P value is very small which shows that this model is significant. However, we can see that not all predictors are statistically significant. The age and indus predictors are not statistically significant which shows that they may not be impactful for the model. 
+
+Here are the interpretations of the estimates:
+Crim: a 1 % increase in the per capita crime rate is predicted to be associated with a -0.1275 thousand dollar change in the median value of owner occupied homes.
+
+zn: a 1 % increase in the proportion of residential land zoned for lots over 25,000 sq.ft is predicted to be associated with a 0.04766 thousand dollar change in the median value of owner occupied homes.
+
+indus: a 1 % increase in the proportion of non retail business acres per town is predicted to be associated with a 0.034 thousand dollar change in the median value of owner occupied homes.
+
+nox: a 1 unit increase in the nitric oxides concentration is predicted to be associated with a -18.383 thousand dollar change in the median value of owner occupied homes
+
+rm: a 1 unit increase in the average number of rooms per dwelling is predicted to be associated with a 3.69 thousand dollar change in the median value of owner occupied homes
+
+age: a 1% increase in the proportion of owner occupied units built prior to 1940 is predicted to be associated with a 0.00597 thousand dollar change in the median value of owner occupied homes
+
+dis: a 1 unit increase in the weighted distance to five boston employment centers is predicted to be associated with a -1.502 thousand dollar change in the median value of owner occupied homes
+
+rad: a 1 unit increase in the index of accessibility to radial highways is predicted to be associated with a 0.3122 thousand dollar increase in the median value of owner occupied homes
+
+tax: a $1 increase in the full value property tax rate per $10,000 is predicted to be associated with a -0.0142 thousand dollar change in the median value of owner occupied homes
+
+ptratio: a 1 unit increase in the pupil-teacher ratio by town is predicted to be associated with a -0.9773 thousand dollar change in the median value of owner occupied homes
+
+LSTAT: a 1% increase in the proportion of lower status individuals in the population is predicted to be associated with a -0.633 thousand dollar change in the median value of owner occupied homes
+
+## Step 3: identifying any outliers, high levarage and or influential observations worth removing and re-estimating model:
+
+Medv: the boxplot had identified a number of potential outliers, however looking at the plots there don't seem to be any massive gaps and significant outliers so we will not identify any outliers in this variable
+
+Crim: From the histogram and box plot of this variable, there definitely seems to be high influential outliers in this variable. The boxplot identified a number of them, however it looks like there are 3 main massive outliers so we will remove those 3 highest observations. 
+
+Zn: From the histogram and box plot of this variable, There do seem to be a number of potential outliers on the high side far away from the peak towards the left side, however they all seem relatively grouped together so we will leave them in the dataset. 
+
+indus: From the histogram and boxplot, there are no outliers visible, and no outliers identified as well, so we will not remove any observations. 
+
+nox: From the histogram there seems to be one or two potential outliers, however the boxplot did not identify any so we will not remove any observations.
+
+rm: The boxplot identified a number of outliers on both sides, however from the histogram the data seems relatively symmetrical so we will not remove any observations.
+
+age: Neither the histogram nor boxplot showed signs of any big outliers so we will not remove any observations. 
+
+dis: From the histogram, there seems to be a couple potential outliers on the high side, and the boxplot also identified a couple outliers. Since a couple of the outliers are relatively close to the rest of the data and close to each other, we will only remove the largest outlier 
+in the variable. 
+
+rad: Looking at the histogram, there seems to be a main distribution to the left, and then a major gap and then a number of observations that could be potential outliers to the right. From the boxplot, there weren't any outliers identified. Although there is a massive gap, due to the frequency of observations after the gap, we will not remove any observations. 
+
+tax: Looking at the histogram, there again is a massive gap in the data, and therefore potential outliers to the right, however the frequency is high. According to the boxplot, there are no outliers identified. Therefore, we will not remove any observations even with the massive gap in the data.
+
+ptratio: Looking at the histogram, it seems as though there may be potential outliers on bottom side. The boxplot also identified a couple of outliers on the bottom side. As a result, we will remove the bottom 3 observations from this variable(2 observations are the same value). 
+
+Lstat: Looking at the histogram, there doesn't seem to be any clear outliers. According to the boxplot, there were some outliers identified on the top side, however they are all grouped decently together therefore we will not remove any observations from the variable. 
+
+Remove the outlier observations from the variables and re-estimate the model:
+
+```{r}
+crim_outliers <- df$crim > 60
+dis_outliers <- df$dis > 12
+ptratio_outliers <- df$ptratio < 12.8
+outliers_rows <- crim_outliers | dis_outliers | ptratio_outliers
+df_cleaned <- df[!outliers_rows, ]
+
+cleaned_reg.mod <- lm(df_cleaned$medv ~., data = df_cleaned)
+summary(cleaned_reg.mod)
+
+```
+
+## Step 4: Use Mallows CP for identifying the terms you will keep in the model, and use the Boruta algorithm for variable selection
+
+Mallows_CP
+```{r}
+library(leaps)
+ss=regsubsets(df_cleaned$medv ~., method =c("exhaustive"), nbest = 3, data=df_cleaned)
+subsets(ss, statistic="cp", legend=F, main = "Mallows CP", col = "steelblue4", ylim = c(0,50))
+```
+
+Boruta Algorithm:
+```{r}
+library(Boruta)
+Bor.res <- Boruta(df_cleaned$medv ~., data = df_cleaned, doTrace = 2)
+#plot(Bor.res,sort=TRUE)
+plot(Bor.res, xlab = "", xaxt = "n", main="Boruta Algorithm Feature Importance")
+lz<-lapply(1:ncol(Bor.res$ImpHistory),function(i)
+Bor.res$ImpHistory[is.finite(Bor.res$ImpHistory[,i]),i])
+names(lz) <- colnames(Bor.res$ImpHistory)
+Labels <- sort(sapply(lz,median))
+axis(side = 1,las=2,labels = names(Labels),
+at = 1:ncol(Bor.res$ImpHistory), cex.axis = 0.7)
+```
+Interpretation: Overall, from the Mallows CP and Boruta algorithm, we are getting different results. According to the Mallows CP, the best model removes the crim, indus and age variables. On the other hand, according to the Boruta algorithm, all the predictors are confirmed. In this case, because indus and age were ommited using mallows CP, and are the least important in the boruta algorithm, we will choose to keep all the variables except for the indus and age variables. We will keep the crim variable as in the regression, it was significant(albeit not 3 stars, and it is more important than the other 2 variables)
+
+## Step 5 Test for multicollinearity using VIF on the model from 4, and based on the test, remove any appropriate variables and estimate a new regression model
+
+```{r}
+vif(cleaned_reg.mod)
+```
+
+Interpretation: In this case, we can see that the VIF values for most of the variables are relatively low, however we can see for the rad and tax variables, the VIF is quite high. Therefore, we will estimate the new model by removing those two variables
+
+```{r}
+new_reg_mod <- lm(df_cleaned$medv ~. - df_cleaned$tax - df_cleaned$rad, data = df_cleaned)
+summary(new_reg_mod)
+```
+
+
