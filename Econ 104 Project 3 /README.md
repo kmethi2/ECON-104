@@ -8,7 +8,7 @@
   * Lastly, we fit a random effects model to the data and compared that with the fixed and pooled model and then concluded our optimal model from our results
 
 * Qualitative Dependent Variable Models
-  * In this section of the model, we worked with a dataset concerned with predictign whether an individual is a foreigner or not based on other variables.
+  * In this section of the project, we worked with a dataset concerned with predictign whether an individual is a foreigner or not based on other variables.
   * After doing some general analysis of our variables, we first fit a general linear probability model to the data and analyzed how well it did in its predictions.
   * We then fit probit and logit models and ran similar analyses to see how effective the models were in accurately predicting the binary variable.
   * After selecting our preferred model, we conducted some final tests to see ow reliable our model was in predicting whether an individual was a foreigner or not
