@@ -1,0 +1,1151 @@
+---
+title: "104_project2"
+author: "Krish Methi, Krithik Jatavallabhula, Brandon Chan"
+date: "1/31/2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load libraries
+library(tseries)
+library(forecast)
+library(fpp3)
+library(tseries)
+library(seasonal)
+library(fable)
+library(stats)
+require(graphics)
+library(dplyr)
+library(tsibble)
+library(tsibbledata)
+library(dynlm)
+library(data.table)
+library(zoo)
+library(ARDL)
+```
+
+# Introduction
+
+The dataset we are working with for this project is the USMacroG dataset, a quarterly multiple time series on 12 US Macroeconomic variables from 1950-2000. We have removed variables so that the dataset we are operating on contains GDP, consumption, investment, government expenditures, and real disposable personal income. For our analysis, we will be using GDP and consumption as our response variables aiming to predict, and investment, government expenditures, and Rdpi as our 3 predictors. We calculated the growth rates of these variables over time, and operated on those growth rates.  
+
+```{r}
+rm(list=ls(all=TRUE))
+library(AER)
+# Access the "USMacroG" dataset
+data("USMacroG")
+
+# Assign the dataset to the variable myData, and remove the columns we don't want
+myData <- USMacroG
+mydata_ts<-ts(myData,start=1950,freq=4)
+mydata_ts <- mydata_ts[, -c(6:12)]
+```
+
+# Part 1: descriptive analysis of variables
+
+## GDP growth
+
+```{r}
+GDP <- mydata_ts[, 1]
+log_gdp <- log(GDP)
+gdp_growth <- diff(log_gdp) * 100
+summary(gdp_growth)
+boxplot(gdp_growth, main = "Boxplot of GDP growth from 1950-2000", xlab = "GDP growth")
+GDP_hist <- hist(gdp_growth, main = "Histogram of GDP growth", xlab = "GDP", ylab = "Frequency")
+xfit <- seq(min(gdp_growth), max(gdp_growth), length = 100)
+yfit <- dnorm(xfit, mean = mean(gdp_growth), sd = sd(gdp_growth))
+yfit <- yfit * diff(GDP_hist$mids[1:2]) * length(gdp_growth)
+lines(xfit, yfit, col = "red", lwd = 2)
+```
+Comments: The GDP variable refers to the the real gross domestic product growth in percent, one of the response variables in our dataset. From the histogram, the data looks relatively normal, or potentially right skewed slightly, with a peak in between 0 and 1% gdp growth. There seems to be potential outliers on the left side and one on the right side from the histogram. With the fitted red line normal curve, it shows us that the GDP variable does somewhat resemble a normal distribution. Looking at the box plot, we can see the Interquartile range box, with the median slightly under the center point, suggesting the right skewness of the data, and we can see that there are outliers in the lower and higher half of the data. Looking at the 5 number summary, we have the median and mean at 0.825 and 0.864 % growth, and we have the IQR from 0.332 to 1.49 % 
+
+## Consumption
+
+```{r}
+Consumption <- mydata_ts[, 2]
+log_cons <- log(Consumption)
+cons_growth <- diff(log_cons) * 100
+summary(cons_growth)
+boxplot(cons_growth, main = "Boxplot of Consumption Growth from 1950-2000", xlab = "Consumption Growth")
+Consumption_hist <- hist(cons_growth, main = "Histogram of Consumption Growth", xlab = "Consumption Growth", ylab = "Frequency")
+xfit <- seq(min(cons_growth), max(cons_growth), length = 100)
+yfit <- dnorm(xfit, mean = mean(cons_growth), sd = sd(cons_growth))
+yfit <- yfit * diff(Consumption_hist$mids[1:2]) * length(cons_growth)
+lines(xfit, yfit, col = "red", lwd = 2)
+plot(cons_growth, gdp_growth, main = "Scatterplot of Consumption Growth compared to GDP Growth", xlab = "Consumption Growth", ylab = "GDP Growth")
+```
+Comments: The Consumption variable refers to the growth of real consumption expenditures, one of the response variables in our dataset. From the histogram, the data appears to be relatively normally distributed, with peaks in between 0-2 percent growth. There seems to be potential outliers on both sides from the histogram. the fitted red normal distribution line also looks like a pretty good fit on the histogram. Looking at the box plot, we can see the Interquartile range box, and the median looks to be right around the center, suggesting symmetrical data, and we can see that there are outliers on both sides present in the data from the boxplot. Looking at the 5 number summary, we have the median and mean at 0.911 and 0.882 percent growth, and we have the IQR from 0.457 to 1.36 percent Looking at the scatterplot, we can see a pretty clear trend, as consumption growth increases, GDP growth increases. 
+
+## Investment
+
+```{r}
+Investment <- mydata_ts[, 3]
+log_investment <- log(Investment)
+inv_growth <- diff(log_investment) * 100
+summary(inv_growth)
+boxplot(inv_growth, main = "Boxplot of Investment Growth from 1950-2000", xlab = "Investment Growth")
+Investment_hist <- hist(inv_growth, main = "Histogram of Investment Growth", xlab = "Investment Growth", ylab = "Frequency")
+xfit <- seq(min(inv_growth), max(inv_growth), length = 100)
+yfit <- dnorm(xfit, mean = mean(inv_growth), sd = sd(inv_growth))
+yfit <- yfit * diff(Investment_hist$mids[1:2]) * length(inv_growth)
+lines(xfit, yfit, col = "red", lwd = 2)
+plot(inv_growth, gdp_growth, main = "Scatterplot of Investment Growth compared to GDP Growth", xlab = "Investment Growth", ylab = "GDP Growth")
+```
+Comments: The Investment variable refers to the growth the real investment by private sector, one of the predictor variables in our dataset. From the histogram, it seems that the data is slightly left skewed, with a main peak in between 0 and 5 percent growth. There seems to be a couple potential outliers on the left side form the histogram. The fitted red normal distribition line also looks like a pretty good fit on the histogram here. Looking at the box plot, we can see the Interquartile range box, with the median right around the center point, suggesting relatively symmetrical data, and we can see that there are outliers identified in the data towards the top and bottom side, more on the bottom side. Looking at the 5 number summary, we have the median and mean at 1.2 and 1.08 percent, and we have the IQR from -1.28 to 4.04 percent Looking at the scatterplot, we can see a massively clear trend as well, as investment increases, GDP increases. In this variable, we see the range is much wider than the previous variables, and the IQR goes into negative growth as well, suggesting more volatility. 
+
+
+## Government Expenditures
+
+```{r}
+Government <- mydata_ts[, 4]
+log_gov <- log(Government)
+gov_growth <- diff(log_gov) * 100
+summary(gov_growth)
+boxplot(gov_growth, main = "Boxplot of Government Expenditure growth from 1950-2000", xlab = "Government Expenditure growth")
+Government_hist <- hist(gov_growth, main = "Histogram of Government Expenditure growth", xlab = "Government Expenditure growth", ylab = "Frequency")
+xfit <- seq(min(gov_growth), max(gov_growth), length = 100)
+yfit <- dnorm(xfit, mean = mean(gov_growth), sd = sd(gov_growth))
+yfit <- yfit * diff(Government_hist$mids[1:2]) * length(gov_growth)
+lines(xfit, yfit, col = "red", lwd = 2)
+plot(gov_growth, gdp_growth, main = "Scatterplot of Government Expenditure growth compared to GDP growth", xlab = "Government Expenditure growth", ylab = "GDP growth")
+```
+Comments: The Government variable refers to the the real government expenditures, one of the predictor variables in our dataset. From the histogram,the data clearly seems to be right skewed, with one main peak from 0 to 2.5 percent growth There seems to be many outliers present on the top side from the histogram. With the fitted red line normal curve, the line doesn't appear to work too well with the data. Looking at the box plot, we can see the Interquartile range box, with the median right around the center point, and we can see that there are outliers in the data identified, moreso on the top side than on the bottom side. Looking at the 5 number summary, we have the median and mean at 0.534 and 0.728 percent, and we have the IQR from -0.211 to 1.342 percent Looking at the scatterplot, we see an overall trend of as government expenditures increases, GDP increases however the points are very clustered, and after a certain point of around 5% growth, doesn't seem to be a positive trend. Again this variable includes negative growth in the IQR, however the range is less than investment.
+
+
+## Real disposable personal income
+
+```{r}
+Rdpi <- mydata_ts[, 5]
+log_rdpi <- log(Rdpi)
+rdpi_growth <- diff(log_rdpi) * 100
+summary(rdpi_growth)
+boxplot(rdpi_growth, main = "Boxplot of Rdpi growth from 1950-2000", xlab = "Disposable personal income growth")
+Rdpi_hist <- hist(rdpi_growth, main = "Histogram of Disposable personal income growth", xlab = "Disposable personal income growth", ylab = "Frequency")
+xfit <- seq(min(rdpi_growth), max(rdpi_growth), length = 100)
+yfit <- dnorm(xfit, mean = mean(rdpi_growth), sd = sd(rdpi_growth))
+yfit <- yfit * diff(Rdpi_hist$mids[1:2]) * length(rdpi_growth)
+lines(xfit, yfit, col = "red", lwd = 2)
+plot(rdpi_growth, gdp_growth, main = "Scatterplot of real disposable personal income growth compared to GDP growth", xlab = "real disposable personal income growth", ylab = "GDP growth")
+```
+Comments: The Rdpi variable refers to the growth of real disposable personal income, one of the predictor variables in our dataset. From the histogram, the data looks to be relatively normally distributed, with a couple main peaks in between 0 and 2 percent growth. There seems to be some potential outliers towards the top half of the data. The fitted red normal distribition line also looks like a pretty good fit on the histogram here. Looking at the box plot, we can see the Interquartile range box, with the median pretty much right at the center point, suggesting symmetrical data, and we can see that there are outliers in the data identified both on the top and bottom side of the data. Looking at the 5 number summary, we have the median and mean at 0.843 and 0.848 percent, and we have the IQR from 0.387 to 1.378 percent Looking at the scatterplot, we can also see a clear trend, as consumption increases, GDP increases. However similar to government expenditures, past a certain point, around 2.5 percent, it seems like the positive trend becomes less evident although this could be due to a lack of data points as well. 
+
+## Correlation matrix
+
+```{r}
+library(corrplot)
+my_dataframe <- cbind(gdp_growth, cons_growth, inv_growth, gov_growth, rdpi_growth)
+cor_matrix <- cor(my_dataframe)
+corrplot(cor_matrix)
+```
+
+Comments: From this correlation matrix, we can see different correlation values for different pairs, but we can see trends in the correlation matrix. For gdp growth, we can see that it has relatively high correlations with most of the variables except for government expenditure growth. For consumption growth, it's pretty similar however it doesn't have as high of a correlation with investment growth on top of government expenditure growth. This same trend in the correlations can be seen with real disposable income growth as well. For government expenditure growth, it has relatively low correlations with all the other variables which could be significant. So overall, this might show that government expenditure growth may not be as significant in gdp and consumption growth than the other two predictors of rdpi and investment growth
+
+# Part 2: tsdisplay, ACF and PACF of each variable
+
+## GDP
+
+```{r}
+tsdisplay(gdp_growth)
+```
+
+Based on the tsdisplay, the series looks relatively stationary, with potentially a slight downward trend but mean reverting mostly. Looking at the ACF and PACF plots, there aren't too much dynamics to see, however the first 2 lags in the ACF and the first lag in the PACF cross the bands, suggesting up to 2 lags of gdp growth may be significant.
+
+## Consumption
+
+```{r}
+tsdisplay(cons_growth)
+```
+Based on the tsdisplay, the series looks mostly stationary except for the first couple years where there is an increased volatility. There are some downward spikes however throughout the data with no real big upward jumps. Looking at the ACF and PACF plots the 2nd lag is the only lag that crosses the threshold in both the ACF and PACF plot, suggesting that lag is significant. 
+
+## Investment
+
+```{r}
+tsdisplay(inv_growth)
+```
+Based on the tsdisplay, the series also looks mostly stationary however there is a lot more volatility in the data, but the series still reverts. Looking at the ACF and PACF plots there are no lags that significantly cross the threshold, however there are a good amount of lags that barely cross the threshold, suggesting there may not be too much important dynamics.
+
+## Government spending
+
+```{r}
+tsdisplay(gov_growth)
+```
+Based on the tsdisplay,except for the beginning years the series also looks mostly stationary and mean reverting. Looking at the ACF and PACF plots, we see that the PACF has one big spike at lag one, and the ACF has decay in the lags with the first 3-4 lags crossing the threshold. This suggests that the first lag is statistically significant, and potentially the next couple as well but mainly the first lag. 
+
+## Disposable personal income
+
+```{r}
+tsdisplay(rdpi_growth)
+```
+
+Based on the tsdisplay, the series also looks mostly stationary however there is a lot more volatility in the data, but the series still reverts but not too quickly. Looking at the ACF and PACF plots, the 5th lag crosses the threshold pretty significantly in both cases, suggesting significance,w ith no other lags crossing the threshold bands. This seems a bit unusual as economically it doesn't make too much sense that the 5th lag would be more significant than lags 1-4
+
+```{r, error = TRUE}
+#Part 3
+#This is for variable gdp growth. 
+
+library(stats)
+library(forecast)
+library(dLagM)
+
+
+# Fit AR(p) models
+order_1 <- c(3, 0, 0)# AR(3) model
+order_2 <- c(5, 0, 0)# AR(5) model
+
+# Fit ARIMA models to the 'cons_growth' variable
+model_1 <- Arima(my_dataframe[, 1], order=order_1)
+model_2 <- Arima(my_dataframe[, 1], order=order_2)
+
+# Plot and comment on ACF and PACF of the residuals
+plot(model_1$residuals, main="Residuals for AR(3) Model")
+plot(model_2$residuals, main="Residuals for AR(5) Model")
+acf(model_1$residuals, main="ACF of Residuals for AR(3) Model")
+pacf(model_1$residuals, main="PACF of Residuals for AR(3) Model")
+acf(model_2$residuals, main="ACF of Residuals for AR(5) Model")
+pacf(model_2$residuals, main="PACF of Residuals for AR(5) Model")
+
+#The ACFs of model 1 and model 2 for the AR(3) and AR(5) models respectively both only had one dynamic at lag 0 and the graphs looked very similar. The PACFs of model 1 and model 2 for the AR(3) and AR(5) models respectively both had no dynamics and once again looked similar. 
+
+train_size <- round(2/3 * length(my_dataframe[, 1]))
+
+# Split the data
+train_data <- my_dataframe[, 1][1:train_size]
+test_data <- my_dataframe[, 1][(train_size + 1):length(my_dataframe[, 1])]
+
+# Forecasting
+forecast_1 <- forecast(model_1, h=length(test_data))
+forecast_2 <- forecast(model_2, h=length(test_data))
+
+# Compute MSE/RMSE
+mse_1 <- mean((forecast_1$mean - test_data)^2)
+mse_2 <- mean((forecast_2$mean - test_data)^2)
+
+cat("MSE for Model 1:", mse_1, "\n")
+cat("MSE for Model 2:", mse_2, "\n")
+
+# Calculate AIC and BIC for both models
+aic_1 <- AIC(model_1)
+bic_1 <- BIC(model_1)
+aic_2 <- AIC(model_2)
+bic_2 <- BIC(model_2)
+
+cat("AIC for Model 1:", aic_1, "\n")
+cat("BIC for Model 1:", bic_1, "\n")
+cat("AIC for Model 2:", aic_2, "\n")
+cat("BIC for Model 2:", bic_2, "\n")
+
+#According to the MSE, model 2 is better due to it being a lower value; however according to the AIC/BIC, model 1 is better due to the lower value. 
+
+# 10-step ahead forecast
+forecast_10_1 <- forecast(model_1, h=10)
+forecast_10_2 <- forecast(model_2, h=10)
+
+print("10-step ahead forecast for Model 1:")
+print(forecast_10_1)
+
+print("10-step ahead forecast for Model 2:")
+print(forecast_10_2)
+
+plot(forecast_10_1)
+plot(forecast_10_2)
+```
+
+```{r, error = TRUE}
+#Part 3
+#This is for variable consumption growth
+library(stats)
+library(forecast)
+
+# Fit AR(p) models
+order_1 <- c(3, 0, 0)# AR(3) model
+order_2 <- c(5, 0, 0)# AR(5) model
+
+# Fit ARIMA models to the 'cons_growth' variable
+model_1 <- Arima(my_dataframe[, 2], order=order_1)
+model_2 <- Arima(my_dataframe[, 2], order=order_2)
+
+# Plot and comment on ACF and PACF of the residuals
+plot(model_1$residuals, main="Residuals for AR(3) Model")
+plot(model_2$residuals, main="Residuals for AR(5) Model")
+acf(model_1$residuals, main="ACF of Residuals for AR(3) Model")
+pacf(model_1$residuals, main="PACF of Residuals for AR(3) Model")
+acf(model_2$residuals, main="ACF of Residuals for AR(5) Model")
+pacf(model_2$residuals, main="PACF of Residuals for AR(5) Model")
+
+#The ACFs of model 1 and model 2 for the AR(3) and AR(5) models respectively both had 3 dynamics and the graphs looked very similar. The PACFs of model 1 and model 2 for the AR(3) and AR(5) models respectively also had 3 dynamics and once again looked similar. 
+
+train_size <- round(2/3 * length(my_dataframe[, 2]))
+
+# Split the data
+train_data <- my_dataframe[, 2][1:train_size]
+test_data <- my_dataframe[, 2][(train_size + 1):length(my_dataframe[, 2])]
+
+# Forecasting
+forecast_1 <- forecast(model_1, h=length(test_data))
+forecast_2 <- forecast(model_2, h=length(test_data))
+
+# Compute MSE/RMSE
+mse_1 <- mean((forecast_1$mean - test_data)^2)
+mse_2 <- mean((forecast_2$mean - test_data)^2)
+
+cat("MSE for Model 1:", mse_1, "\n")
+cat("MSE for Model 2:", mse_2, "\n")
+
+# Calculate AIC and BIC for both models
+aic_1 <- AIC(model_1)
+bic_1 <- BIC(model_1)
+aic_2 <- AIC(model_2)
+bic_2 <- BIC(model_2)
+
+cat("AIC for Model 1:", aic_1, "\n")
+cat("BIC for Model 1:", bic_1, "\n")
+cat("AIC for Model 2:", aic_2, "\n")
+cat("BIC for Model 2:", bic_2, "\n")
+
+#Model 1 is the better model based on the MSE and the AIC/BIC because all three metrics have lower values for model 1 compared to model 2. 
+
+# 10-step ahead forecast
+forecast_10_1 <- forecast(model_1, h=10)
+forecast_10_2 <- forecast(model_2, h=10)
+
+print("10-step ahead forecast for Model 1:")
+print(forecast_10_1)
+
+print("10-step ahead forecast for Model 2:")
+print(forecast_10_2)
+
+plot(forecast_10_1)
+plot(forecast_10_2)
+```
+
+```{r, error = TRUE}
+#Part 3
+#This is for variable investment growth. 
+library(dLagM)
+library(stats)
+library(forecast)
+
+# Fit AR(p) models
+order_1 <- c(3, 0, 0)# AR(3) model
+order_2 <- c(5, 0, 0)# AR(5) model
+
+# Fit ARIMA models to the 'inv_growth' variable
+model_1 <- Arima(my_dataframe[, 3], order=order_1)
+model_2 <- Arima(my_dataframe[, 3], order=order_2)
+
+# Plot and comment on ACF and PACF of the residuals
+plot(model_1$residuals, main="Residuals for AR(3) Model")
+plot(model_2$residuals, main="Residuals for AR(5) Model")
+acf(model_1$residuals, main="ACF of Residuals for AR(3) Model")
+pacf(model_1$residuals, main="PACF of Residuals for AR(3) Model")
+acf(model_2$residuals, main="ACF of Residuals for AR(5) Model")
+pacf(model_2$residuals, main="PACF of Residuals for AR(5) Model")
+
+#The ACF of model 1 for the AR(3) model has 4 dynamics whereas the ACF of model 2 for the AR(5) model has only one dynamic. The PACF of model 1 for the AR(3) model has 3 dynamics whereas the PACF of model 2 for the AR(5) model has only one dynamic. This suggests that model 1 has stronger relationships between lagged intervals. 
+
+train_size <- round(2/3 * length(my_dataframe[, 3]))
+
+# Split the data
+train_data <- my_dataframe[, 3][1:train_size]
+test_data <- my_dataframe[, 3][(train_size + 1):length(my_dataframe[, 3])]
+
+# Forecasting
+forecast_1 <- forecast(model_1, h=length(test_data))
+forecast_2 <- forecast(model_2, h=length(test_data))
+
+# Compute MSE/RMSE
+mse_1 <- mean((forecast_1$mean - test_data)^2)
+mse_2 <- mean((forecast_2$mean - test_data)^2)
+
+cat("MSE for Model 1:", mse_1, "\n")
+cat("MSE for Model 2:", mse_2, "\n")
+
+# Calculate AIC and BIC for both models
+aic_1 <- AIC(model_1)
+bic_1 <- BIC(model_1)
+aic_2 <- AIC(model_2)
+bic_2 <- BIC(model_2)
+
+cat("AIC for Model 1:", aic_1, "\n")
+cat("BIC for Model 1:", bic_1, "\n")
+cat("AIC for Model 2:", aic_2, "\n")
+cat("BIC for Model 2:", bic_2, "\n")
+
+#Model 1 is the better model based on the MSE but model 2 is the better model based on the AIC/BIC. 
+
+# 10-step ahead forecast
+forecast_10_1 <- forecast(model_1, h=10)
+forecast_10_2 <- forecast(model_2, h=10)
+
+print("10-step ahead forecast for Model 1:")
+print(forecast_10_1)
+
+print("10-step ahead forecast for Model 2:")
+print(forecast_10_2)
+
+plot(forecast_10_1)
+plot(forecast_10_2)
+```
+
+```{r}
+#Part 3
+#This is for variable government growth. 
+
+library(stats)
+library(forecast)
+
+# Fit AR(p) models
+order_1 <- c(3, 0, 0)# AR(3) model
+order_2 <- c(5, 0, 0)# AR(5) model
+
+# Fit ARIMA models to the 'gov_growth' variable
+model_1 <- Arima(my_dataframe[, 4], order=order_1)
+model_2 <- Arima(my_dataframe[, 4], order=order_2)
+
+# Plot and comment on ACF and PACF of the residuals
+plot(model_1$residuals, main="Residuals for AR(3) Model")
+plot(model_2$residuals, main="Residuals for AR(5) Model")
+acf(model_1$residuals, main="ACF of Residuals for AR(3) Model")
+pacf(model_1$residuals, main="PACF of Residuals for AR(3) Model")
+acf(model_2$residuals, main="ACF of Residuals for AR(5) Model")
+pacf(model_2$residuals, main="PACF of Residuals for AR(5) Model")
+
+#The ACFs of model 1 and model 2 for the AR(3) and AR(5) models respectively both had 1 dynamic at lag 0 and the graphs looked very similar. The PACFs of model 1 and model 2 for the AR(3) and AR(5) models respectively both had no dynamics. 
+
+train_size <- round(2/3 * length(my_dataframe[, 4]))
+
+# Split the data
+train_data <- my_dataframe[, 4][1:train_size]
+test_data <- my_dataframe[, 4][(train_size + 1):length(my_dataframe[, 4])]
+
+# Forecasting
+forecast_1 <- forecast(model_1, h=length(test_data))
+forecast_2 <- forecast(model_2, h=length(test_data))
+
+# Compute MSE/RMSE
+mse_1 <- mean((forecast_1$mean - test_data)^2)
+mse_2 <- mean((forecast_2$mean - test_data)^2)
+
+cat("MSE for Model 1:", mse_1, "\n")
+cat("MSE for Model 2:", mse_2, "\n")
+
+# Calculate AIC and BIC for both models
+aic_1 <- AIC(model_1)
+bic_1 <- BIC(model_1)
+aic_2 <- AIC(model_2)
+bic_2 <- BIC(model_2)
+
+#Model 2 is a better model based on the MSE but model 1 is a better model based on the AIC/BIC. 
+
+cat("AIC for Model 1:", aic_1, "\n")
+cat("BIC for Model 1:", bic_1, "\n")
+cat("AIC for Model 2:", aic_2, "\n")
+cat("BIC for Model 2:", bic_2, "\n")
+
+# 10-step ahead forecast
+forecast_10_1 <- forecast(model_1, h=10)
+forecast_10_2 <- forecast(model_2, h=10)
+
+print("10-step ahead forecast for Model 1:")
+print(forecast_10_1)
+
+print("10-step ahead forecast for Model 2:")
+print(forecast_10_2)
+
+plot(forecast_10_1)
+plot(forecast_10_2)
+```
+
+```{r}
+#Part 3
+#This is for variable rdpi growth. 
+
+library(stats)
+library(forecast)
+
+# Fit AR(p) models
+order_1 <- c(3, 0, 0)# AR(3) model
+order_2 <- c(5, 0, 0)# AR(5) model
+
+# Fit ARIMA models to the 'rdpi_growth' variable
+model_1 <- Arima(my_dataframe[, 5], order=order_1)
+model_2 <- Arima(my_dataframe[, 5], order=order_2)
+
+# Plot and comment on ACF and PACF of the residuals
+plot(model_1$residuals, main="Residuals for AR(3) Model")
+plot(model_2$residuals, main="Residuals for AR(5) Model")
+acf(model_1$residuals, main="ACF of Residuals for AR(3) Model")
+pacf(model_1$residuals, main="PACF of Residuals for AR(3) Model")
+acf(model_2$residuals, main="ACF of Residuals for AR(5) Model")
+pacf(model_2$residuals, main="PACF of Residuals for AR(5) Model")
+
+#The ACF of model 1 for the AR(3) model has 4 dynamics whereas the ACF of model 2 for the AR(5) model has 2 dynamics. The PACFs of model 1 and model 2 for the AR(3) model and AR(5) model respectively both have 2 dynamics. Model 1 may be a slightly better model based on the ACFs and PACFs. 
+
+train_size <- round(2/3 * length(my_dataframe[, 5]))
+
+# Split the data
+train_data <- my_dataframe[, 5][1:train_size]
+test_data <- my_dataframe[, 5][(train_size + 1):length(my_dataframe[, 5])]
+
+# Forecasting
+forecast_1 <- forecast(model_1, h=length(test_data))
+forecast_2 <- forecast(model_2, h=length(test_data))
+
+# Compute MSE/RMSE
+mse_1 <- mean((forecast_1$mean - test_data)^2)
+mse_2 <- mean((forecast_2$mean - test_data)^2)
+
+cat("MSE for Model 1:", mse_1, "\n")
+cat("MSE for Model 2:", mse_2, "\n")
+
+# Calculate AIC and BIC for both models
+aic_1 <- AIC(model_1)
+bic_1 <- BIC(model_1)
+aic_2 <- AIC(model_2)
+bic_2 <- BIC(model_2)
+
+cat("AIC for Model 1:", aic_1, "\n")
+cat("BIC for Model 1:", bic_1, "\n")
+cat("AIC for Model 2:", aic_2, "\n")
+cat("BIC for Model 2:", bic_2, "\n")
+
+#Model 2 is a better model based on the MSE but model 1 is a better model based on the AIC/BIC. 
+# 10-step ahead forecast
+forecast_10_1 <- forecast(model_1, h=10)
+forecast_10_2 <- forecast(model_2, h=10)
+
+print("10-step ahead forecast for Model 1:")
+print(forecast_10_1)
+
+print("10-step ahead forecast for Model 2:")
+print(forecast_10_2)
+
+plot(forecast_10_1)
+plot(forecast_10_2)
+```
+
+
+#Part 4
+```{r}
+train_data <- my_dataframe[1:136,]
+test_data <- my_dataframe[137:203,]
+train_data_df <- data.frame(train_data)
+test_data_df <- data.frame(test_data)
+
+#Step 1. Get the residuals of order 3 and 5
+
+gdp_cons_3 <- dynlm(gdp_growth~L(gdp_growth, 1:3) + L(cons_growth, 1:3), data = my_dataframe)
+
+acf(gdp_cons_3$residuals)
+pacf(gdp_cons_3$residuals)
+
+gdp_cons_5 <- dynlm(gdp_growth~L(gdp_growth, 1:5) + L(cons_growth, 1:5), data=train_data)
+
+acf(gdp_cons_5$residuals)
+pacf(gdp_cons_5$residuals)
+
+#Step 2. Split into train and test and get mses, aic, bic
+gdp_cons_3_train <- dynlm(gdp_growth~L(gdp_growth, 1:3) + L(cons_growth, 1:3), data = train_data)
+
+train_mse <- mean((as.numeric(predict(gdp_cons_3_train)[1:133]) - train_data_df$gdp_growth[4:136])^2)
+print(train_mse)
+
+predictions <- predict(gdp_cons_3_train, n.ahead=67)
+test_mse <- mean(na.omit((as.numeric(predictions[137:203]) - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+gdp_cons_5_train <- dynlm(gdp_growth~L(gdp_growth, 1:5) + L(cons_growth, 1:5), data = train_data)
+
+train_mse <- mean((as.numeric(predict(gdp_cons_5_train)[1:131]) - train_data_df$gdp_growth[6:136])^2)
+print(train_mse)
+
+predictions <- predict(gdp_cons_5_train, n.ahead=67)
+test_mse <- mean(na.omit((predictions[137:203] - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+#AIC and BIC test
+AIC(gdp_cons_3_train)
+AIC(gdp_cons_5_train)
+BIC(gdp_cons_3_train)
+BIC(gdp_cons_5_train)
+
+#Step 3: forecast 10 steps ahead (for the forecasts, it didn't work properly using the model in the notes, so we found the ardl() function from an external library and used that)
+ardl <- ardlDlm(formula = gdp_growth ~ gdp_growth + cons_growth, data = data.frame(my_dataframe), p = 3, q = 3)
+forecast_data <- forecast(model = ardl, x = gdp_growth, h = 10)
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+#x axis is off because it is going by year instead of by quarter. don't know
+#how to fix it
+
+ardl <- ardlDlm(formula = gdp_growth ~ gdp_growth + cons_growth, data = data.frame(my_dataframe), p = 5, q = 5)
+forecast_data <- forecast(model = ardl, x = gdp_growth, h = 10)
+
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+summary(gdp_cons_3)
+summary(gdp_cons_5)
+```
+When looking at the ACF model for ARDL order 3, we see that there is little to no autocorrelation. This can be seen by the lack of significant spikes in the ACF (0 doesn't count, lag at 1.25 just barely crosses the line) and 1 line that barely crosses in the PACF. In the PACF, there are 0 significant lags. While this doesn't definitively prove anything, it does imply that there's no external factors that haven't been accoutned for, or else there would be a pattern. For the MSEs, they're both around the same, with order 3 having a better test MSE and order 5 having a better train MSE. The final comparison factor is AIC and BIC. We have yet another conflict here because the AIC suggests that order 5 is better and BIC suggests that order 3 is better. Overall, when looking at this model with these two orders, we see that neither model is good. When running summaries of the models, we see that in both cases, the only significant components of this model are the first and second lag of cons_growth, implying that we should have never been using an ARDL model in the first place for this situation (if it was good, gdp would have been significant in at least one lag). 
+
+
+
+```{r}
+#GDP-Invest
+gdp_invest_3 <- dynlm(gdp_growth~L(gdp_growth, 1:3) + L(inv_growth, 1:3), data = my_dataframe)
+
+acf(gdp_invest_3$residuals)
+pacf(gdp_invest_3$residuals)
+
+gdp_invest_5 <- dynlm(gdp_growth~L(gdp_growth, 1:5) + L(inv_growth, 1:5), data=my_dataframe)
+
+acf(gdp_invest_5$residuals)
+pacf(gdp_invest_5$residuals)
+
+#Step 2. Split into train and test and get mses, aic, bic
+gdp_invest_3_train <- dynlm(gdp_growth~L(gdp_growth, 1:3) + L(inv_growth, 1:3), data = train_data)
+
+train_mse <- mean((as.numeric(predict(gdp_invest_3_train)[1:133]) - train_data_df$gdp_growth[4:136])^2)
+print(train_mse)
+
+predictions <- predict(gdp_invest_3_train, n.ahead=67)
+test_mse <- mean(na.omit((as.numeric(predictions[137:203]) - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+gdp_invest_5_train <- dynlm(gdp_growth~L(gdp_growth, 1:5) + L(inv_growth, 1:5), data = train_data)
+
+train_mse <- mean((as.numeric(predict(gdp_invest_5_train)[1:131]) - train_data_df$gdp_growth[6:136])^2)
+print(train_mse)
+
+predictions <- predict(gdp_invest_5_train, n.ahead=67)
+test_mse <- mean(na.omit((predictions[137:203] - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+AIC(gdp_invest_3_train)
+AIC(gdp_invest_5_train)
+BIC(gdp_invest_3_train)
+BIC(gdp_invest_5_train)
+
+#Step 3: forecast 10 steps ahead
+ardl <- ardlDlm(formula = gdp_growth ~ gdp_growth + inv_growth, data = data.frame(my_dataframe), p = 3, q = 3)
+forecast_data <- forecast(model = ardl, x = gdp_growth, h = 10)
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+#5 order model
+
+ardl <- ardlDlm(formula = gdp_growth ~ gdp_growth + inv_growth, data = data.frame(my_dataframe), p = 5, q = 5)
+forecast_data <- forecast(model = ardl, x = gdp_growth, h = 10)
+
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+summary(gdp_invest_3)
+summary(gdp_invest_5)
+```
+In the ACF of the residuals for order 3, we see that there no extremely significant spikes. However, in the PACF, we see that there are significant spikes at lag = 2 and 3. This shows that there potential flaws in the model because if the residuals can be modeled, then there is a chance that there is another component we're missing in this model. No significant spikes in the ACF for order 5. However, we see significant spikes in lag 3 and 3.75 for the PACF. Once again, it shows a flaw in our model. When looking at the training and testing mse, once again, we get an issue where the training MSE is better in order 5 model but the testing MSE is better in the order 3 model. Since the training set contains more data points, that's probably a better one to go off of, but we still have the AIC and BIC to make final conclusions. The AIC and BIC has yet another conflict of interest, where order 5 has the better AIC, and order 3 has the better BIC. The final thing is to look at the summaries of the models and see which one is better. In the order 3 model, we see that nothing in the inv_growth is useful and the only successful component is the gdp_growth of Lag 1 and the adjusted R squared is 9.649%. In the 5 order model, we see only gdp_growth of lag 1 is useful. Based on an order 3 and order 5 model, we see that an ARDL model is not useful since in neither model, inv_growth is not useful. We are better off just running an AR(1) model. However, if I had to choose between the two, I would give the slight edge to the order 3 model despite having a lower adjusted R squared due to simplicity. 
+
+```{r}
+#GDP-Gov
+gdp_gov_3 <- dynlm(gdp_growth~L(gdp_growth, 1:3) + L(gov_growth, 1:3), data = my_dataframe)
+
+acf(gdp_gov_3$residuals)
+pacf(gdp_gov_3$residuals)
+
+gdp_gov_5 <- dynlm(gdp_growth~L(gdp_growth, 1:5) + L(gov_growth, 1:5), data=my_dataframe)
+
+acf(gdp_gov_5$residuals)
+pacf(gdp_gov_5$residuals)
+
+#Step 2. Split into train and test and get mses, aic, bic
+gdp_gov_3_train <- dynlm(gdp_growth~L(gdp_growth, 1:3) + L(gov_growth, 1:3), data = train_data)
+
+train_mse <- mean((as.numeric(predict(gdp_gov_3_train)[1:133]) - train_data_df$gdp_growth[4:136])^2)
+print(train_mse)
+
+predictions <- predict(gdp_gov_3_train, n.ahead=67)
+test_mse <- mean(na.omit((as.numeric(predictions[137:203]) - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+gdp_gov_5_train <- dynlm(gdp_growth~L(gdp_growth, 1:5) + L(gov_growth, 1:5), data = train_data)
+
+train_mse <- mean((as.numeric(predict(gdp_gov_3_train)[1:131]) - train_data_df$gdp_growth[6:136])^2)
+print(train_mse)
+
+predictions <- predict(gdp_gov_5_train, n.ahead=67)
+test_mse <- mean(na.omit((predictions[137:203] - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+AIC(gdp_gov_3_train)
+AIC(gdp_gov_5_train)
+BIC(gdp_gov_3_train)
+BIC(gdp_gov_5_train)
+
+#Step 3: forecast 10 steps ahead
+ardl <- ardlDlm(formula = gdp_growth ~ gdp_growth + gov_growth, data = data.frame(my_dataframe), p = 3, q = 3)
+forecast_data <- forecast(model = ardl, x = gdp_growth, h = 10)
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+#5 order model
+
+ardl <- ardlDlm(formula = gdp_growth ~ gdp_growth + gov_growth, data = data.frame(my_dataframe), p = 5, q = 5)
+forecast_data <- forecast(model = ardl, x = gdp_growth, h = 10)
+
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+summary(gdp_gov_3)
+summary(gdp_gov_5)
+```
+When looking at the residual plots, we see no signs of autocorrelation in the residuals. This is good because we don't want our residuals to have any relation with each other. When looking at the training and testing MSE, they finally come to an agreement and we see that in both instances, the order 3 model is better than the order 5 model. We unfortunately get discrepancies in the AIC and BIC, but we can use MSE here and say that for now, order 3 is the better model. In the summaries, we see that once again, ARDL may not be the best way to go about this. In the order 3 and the 5 model, we see that gov_growth is not significant in either lag and within gdp_growth, only the first lag is significant. This could probably be modelled with AR(1), but for the sake of simplicity, I would prefer the order 3 model over the order 5. 
+
+```{r}
+#GDP-RDPI
+gdp_dpi_3 <- dynlm(gdp_growth~L(gdp_growth, 1:3) + L(rdpi_growth, 1:3), data = my_dataframe)
+
+acf(gdp_dpi_3$residuals)
+pacf(gdp_dpi_3$residuals)
+
+gdp_dpi_5 <- dynlm(gdp_growth~L(gdp_growth, 1:5) + L(rdpi_growth, 1:5), data=my_dataframe)
+
+acf(gdp_dpi_5$residuals)
+pacf(gdp_dpi_5$residuals)
+
+#Step 2. Split into train and test and get mses, aic, bic
+gdp_rdpi_3_train <- dynlm(gdp_growth~L(gdp_growth, 1:3) + L(rdpi_growth, 1:3), data = train_data)
+
+train_mse <- mean((as.numeric(predict(gdp_rdpi_3_train)[1:133]) - train_data_df$gdp_growth[4:136])^2)
+print(train_mse)
+
+predictions <- predict(gdp_rdpi_3_train, n.ahead=67)
+test_mse <- mean(na.omit((as.numeric(predictions[137:203]) - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+gdp_rdpi_5_train <- dynlm(gdp_growth~L(gdp_growth, 1:5) + L(rdpi_growth, 1:5), data = train_data)
+
+train_mse <- mean((as.numeric(predict(gdp_rdpi_3_train)[1:131]) - train_data_df$gdp_growth[6:136])^2)
+print(train_mse)
+
+predictions <- predict(gdp_rdpi_5_train, n.ahead=67)
+test_mse <- mean(na.omit((predictions[137:203] - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+AIC(gdp_rdpi_3_train)
+AIC(gdp_rdpi_5_train)
+BIC(gdp_rdpi_3_train)
+BIC(gdp_rdpi_5_train)
+
+#Step 3: forecast 10 steps ahead
+ardl <- ardlDlm(formula = gdp_growth ~ gdp_growth + rdpi_growth, data = data.frame(my_dataframe), p = 3, q = 3)
+forecast_data <- forecast(model = ardl, x = gdp_growth, h = 10)
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+#5 order model
+
+ardl <- ardlDlm(formula = gdp_growth ~ gdp_growth + rdpi_growth, data = data.frame(my_dataframe), p = 5, q = 5)
+forecast_data <- forecast(model = ardl, x = gdp_growth, h = 10)
+
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+summary(gdp_dpi_3)
+summary(gdp_dpi_5)
+```
+When looking at the ACF and PACF of the residuals, we see no significant spikes (order 3 has some spikes that cross the line in the ACF and PACF, but it is nothing overly concerning). When looking at the MSEs, order 3 does better in both the training and testing. We get another discrepancy in the AIC and BIC, but we can use MSE as the tiebreaker and say that order 3 is better for now. When looking at the summary of both models, we see a positive change: gdp_growth and rdpi_growth are BOTH significant in lag 1. This means ARDL does actually work here, albeit we should probably only use ARDL order 1.
+
+
+```{r}
+#Cons-GDP
+cons_gdp_3 <- dynlm(cons_growth~L(cons_growth, 1:3) + L(gdp_growth, 1:3), data = my_dataframe)
+
+acf(cons_gdp_3$residuals)
+pacf(cons_gdp_3$residuals)
+
+cons_gdp_5 <- dynlm(cons_growth~L(cons_growth, 1:5) + L(gdp_growth, 1:5), data=my_dataframe)
+
+acf(cons_gdp_5$residuals)
+pacf(cons_gdp_5$residuals)
+
+#Step 2. Split into train and test and get mses, aic, bic
+cons_gdp_3_train <- dynlm(cons_growth~L(cons_growth, 1:3) + L(gdp_growth, 1:3), data = train_data)
+
+train_mse <- mean((as.numeric(predict(cons_gdp_3_train)[1:133]) - train_data_df$gdp_growth[4:136])^2)
+print(train_mse)
+
+predictions <- predict(cons_gdp_3_train, n.ahead=67)
+test_mse <- mean(na.omit((as.numeric(predictions[137:203]) - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+cons_gdp_5_train <- dynlm(cons_growth~L(cons_growth, 1:5) + L(gdp_growth, 1:5), data = train_data)
+
+train_mse <- mean((as.numeric(predict(cons_gdp_5_train)[1:131]) - train_data_df$gdp_growth[6:136])^2)
+print(train_mse)
+
+predictions <- predict(cons_gdp_5_train, n.ahead=67)
+test_mse <- mean(na.omit((predictions[137:203] - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+AIC(cons_gdp_3_train)
+AIC(cons_gdp_5_train)
+BIC(cons_gdp_3_train)
+BIC(cons_gdp_5_train)
+
+#Step 3: forecast 10 steps ahead
+ardl <- ardlDlm(formula = cons_growth ~ cons_growth + gdp_growth, data = data.frame(my_dataframe), p = 3, q = 3)
+forecast_data <- forecast(model = ardl, x = cons_growth, h = 10)
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+#5 order model
+
+ardl <- ardlDlm(formula = cons_growth ~ cons_growth + gdp_growth, data = data.frame(my_dataframe), p = 5, q = 5)
+forecast_data <- forecast(model = ardl, x = cons_growth, h = 10)
+
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+summary(cons_gdp_3)
+summary(cons_gdp_5)
+```
+When looking at the residual plots, there are no overly significant spikes except for maybe Lag 2 in the PACF plot for order 5. So far, so good. We now come to an interesting discrepancy. For the MSE, order 5 wins out in both, but when we look at AIC and BIC, order 3 wins out in both. Since order 3 has 2/3 in its favor, for now, we will say it's better. When looking at the order 3 summary, we see that lag 2 for cons_growth is significant and gdp growth lags 1 and 2 are significant. In the order 5 model, we see that cons_growth lag 2 and gdp_growth lag 1 are significant. Once again, similar to last time, it may be a good idea to run an ARDL model of order 1, or perhaps drop cons_growth and only base it on gdp_growth. This one has some room for flexibility. 
+
+```{r}
+#Cons-Invest
+cons_invest_3 <- dynlm(cons_growth~L(cons_growth, 1:3) + L(inv_growth, 1:3), data = my_dataframe)
+
+acf(cons_invest_3$residuals)
+pacf(cons_invest_3$residuals)
+
+cons_invest_5 <- dynlm(cons_growth~L(cons_growth, 1:5) + L(inv_growth, 1:5), data=my_dataframe)
+
+acf(cons_invest_5$residuals)
+pacf(cons_invest_5$residuals)
+
+#Step 2. Split into train and test and get mses, aic, bic
+cons_invest_3_train <- dynlm(cons_growth~L(cons_growth, 1:3) + L(inv_growth, 1:3), data = train_data)
+
+train_mse <- mean((as.numeric(predict(cons_invest_3_train)[1:133]) - train_data_df$gdp_growth[4:136])^2)
+print(train_mse)
+
+predictions <- predict(cons_invest_3_train, n.ahead=67)
+test_mse <- mean(na.omit((as.numeric(predictions[137:203]) - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+cons_invest_5_train <- dynlm(cons_growth~L(cons_growth, 1:5) + L(inv_growth, 1:5), data = train_data)
+
+train_mse <- mean((as.numeric(predict(cons_invest_5_train)[1:131]) - train_data_df$gdp_growth[6:136])^2)
+print(train_mse)
+
+predictions <- predict(cons_invest_5_train, n.ahead=67)
+test_mse <- mean(na.omit((predictions[137:203] - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+AIC(cons_invest_3_train)
+AIC(cons_invest_5_train)
+BIC(cons_invest_3_train)
+BIC(cons_invest_5_train)
+
+#Step 3: forecast 10 steps ahead
+ardl <- ardlDlm(formula = cons_growth ~ cons_growth + inv_growth, data = data.frame(my_dataframe), p = 3, q = 3)
+forecast_data <- forecast(model = ardl, x = cons_growth, h = 10)
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+#5 order model
+
+ardl <- ardlDlm(formula = cons_growth ~ cons_growth + inv_growth, data = data.frame(my_dataframe), p = 5, q = 5)
+forecast_data <- forecast(model = ardl, x = cons_growth, h = 10)
+
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+summary(cons_invest_3)
+summary(cons_invest_5)
+```
+When looking at the ACF and PACF residual plots, except for the spike at lag = 0.75, it looks pretty good for both orders. We do have a discrepancy for training and testing MSE, but order 3 beats out order 5 for both the AIC and BIC, so we can say that order 3 is better in that regard. In the order 3 summary, we see that cons_growth Lag 2 and inv_growth Lag 1 are both significant, implying that an ARDL could work, albeit at a lower order. In the order 5 model, only inv_growth of Lag 1 is significant. If we were to redo this model, it would be best to use ARDL of order 1, or we could even drop cons_growth entirely and not do ARDL. 
+
+
+```{r}
+#Cons-Gov
+cons_gov_3 <- dynlm(cons_growth~L(cons_growth, 1:3) + L(gov_growth, 1:3), data = my_dataframe)
+
+acf(cons_gov_3$residuals)
+pacf(cons_gov_3$residuals)
+
+cons_gov_5 <- dynlm(cons_growth~L(cons_growth, 1:5) + L(gov_growth, 1:5), data=my_dataframe)
+
+acf(cons_gov_5$residuals)
+pacf(cons_gov_5$residuals)
+
+#Step 2. Split into train and test and get mses, aic, bic
+cons_gov_3_train <- dynlm(cons_growth~L(cons_growth, 1:3) + L(gov_growth, 1:3), data = train_data)
+
+train_mse <- mean((as.numeric(predict(cons_gov_3_train)[1:133]) - train_data_df$gdp_growth[4:136])^2)
+print(train_mse)
+
+predictions <- predict(cons_gov_3_train, n.ahead=67)
+test_mse <- mean(na.omit((as.numeric(predictions[137:203]) - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+cons_gov_5_train <- dynlm(cons_growth~L(cons_growth, 1:5) + L(gov_growth, 1:5), data = train_data)
+
+train_mse <- mean((as.numeric(predict(cons_gov_3_train)[1:131]) - train_data_df$gdp_growth[6:136])^2)
+print(train_mse)
+
+predictions <- predict(cons_gov_5_train, n.ahead=67)
+test_mse <- mean(na.omit((predictions[137:203] - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+AIC(cons_gov_3_train)
+AIC(cons_gov_5_train)
+BIC(cons_gov_3_train)
+BIC(cons_gov_5_train)
+
+#Step 3: forecast 10 steps ahead
+ardl <- ardlDlm(formula = cons_growth ~ cons_growth + gov_growth, data = data.frame(my_dataframe), p = 3, q = 3)
+forecast_data <- forecast(model = ardl, x = cons_growth, h = 10)
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+#5 order model
+
+ardl <- ardlDlm(formula = cons_growth ~ cons_growth + gov_growth, data = data.frame(my_dataframe), p = 5, q = 5)
+forecast_data <- forecast(model = ardl, x = cons_growth, h = 10)
+
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+summary(cons_gov_3)
+summary(cons_gov_5)
+```
+The ACF and PACF residuals plot look good. Nothing to be concerned about. The order 3 model does a better job in both train/test MSE and the AIC/BIC tests. Order 3 so far is clearly the superior model. In the order 3 summary, we see that cons_growth Lag 1 and 2 are significant, and gov_growth lag 3 is significant. In the order 5 model, only lags 1 and 2 for gdp_growth is significant. It is very unusual for gov_growth Lag 3 to be significant, considering that lag 1 and 2 are insignificant, so it could be a fluke. If we were the redo this model, it would be better to use a regular AR(2) model since the gov_growth isn't really that important and it may not be worth taking that extra step to add a gov_growth Lag 3 component. 
+
+```{r}
+#Cons-RDPI
+cons_dpi_3 <- dynlm(cons_growth~L(cons_growth, 1:3) + L(rdpi_growth, 1:3), data = my_dataframe)
+
+acf(cons_dpi_3$residuals)
+pacf(cons_dpi_3$residuals)
+
+cons_dpi_5 <- dynlm(cons_growth~L(cons_growth, 1:5) + L(rdpi_growth, 1:5), data=my_dataframe)
+
+acf(cons_dpi_5$residuals)
+pacf(cons_dpi_5$residuals)
+
+#Step 2. Split into train and test and get mses, aic, bic
+cons_dpi_3_train <- dynlm(cons_growth~L(cons_growth, 1:3) + L(rdpi_growth, 1:3), data = train_data)
+
+train_mse <- mean((as.numeric(predict(cons_dpi_3_train)[1:133]) - train_data_df$gdp_growth[4:136])^2)
+print(train_mse)
+
+predictions <- predict(cons_dpi_3_train, n.ahead=67)
+test_mse <- mean(na.omit((as.numeric(predictions[137:203]) - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+cons_dpi_5_train <- dynlm(cons_growth~L(cons_growth, 1:5) + L(rdpi_growth, 1:5), data = train_data)
+
+train_mse <- mean((as.numeric(predict(cons_dpi_5_train)[1:131]) - train_data_df$gdp_growth[6:136])^2)
+print(train_mse)
+
+predictions <- predict(cons_dpi_5_train, n.ahead=67)
+test_mse <- mean(na.omit((predictions[137:203] - test_data_df$gdp_growth))^2)
+print(test_mse)
+
+AIC(cons_dpi_3_train)
+AIC(cons_dpi_5_train)
+BIC(cons_dpi_3_train)
+BIC(cons_dpi_5_train)
+
+#Step 3: forecast 10 steps ahead
+ardl <- ardlDlm(formula = cons_growth ~ cons_growth + rdpi_growth, data = data.frame(my_dataframe), p = 3, q = 3)
+forecast_data <- forecast(model = ardl, x = cons_growth, h = 10)
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+#5 order model
+
+ardl <- ardlDlm(formula = cons_growth ~ cons_growth + rdpi_growth, data = data.frame(my_dataframe), p = 5, q = 5)
+forecast_data <- forecast(model = ardl, x = cons_growth, h = 10)
+
+
+original_data <- ts(my_dataframe[, 1], start = 1950)
+
+plot(original_data, type = "l", col = "blue", lty = 1, lwd = 2, xlab = "Time", ylab = "Original Data", main = "10-Step-Ahead Forecast with Prediction Interval")
+
+lines(ts(forecast_data$forecasts, start = end(original_data) + 1, frequency = frequency(original_data)), col = "red", lty = 1, lwd = 2)
+
+summary(cons_dpi_3)
+summary(cons_dpi_5)
+```
+When looking at the ACF and PACF residual plot, we see a spike in the PACF of order 3 for Lag = 0.75. This could imply that there is some pattern in the residuals that we need to fix if we want to improve our model. We have a discrepancy in the MSE, but the AIC and BIC both favor the order 3 model. In the summary, we see that cons_growth Lag 2 is significant in the order 3 model. In the order 5 model, we see that Lag 2 and 3 for cons_growth are significant and for rdpi_growth, Lag 1 is significant. We could make an ARDL model work, but it is probably better to go a different path for this. 
+
+##Question 5
+```{r}
+#CCF
+library(vars)
+var_model <- VAR(my_dataframe, p = 3)
+summary(var_model)
+plot(var_model)
+
+ccf_plot <- ccf(data.frame(my_dataframe)$gdp_growth, data.frame(my_dataframe)$cons_growth, main = "Cross-Correlation Function (CCF)", xlab = "Lag", ylab = "CCF")
+```
+
+We see that there is very visible cross-correlation near the middle and when looking at the graph, it does exhibit a specific pattern. 
+
+
+```{r}
+#Granger Test
+granger_test <- causality(var_model)
+print(granger_test)
+#reject null hypothesis
+```
+We can reject the null hypothesis and say that there is causality in some form and one of the predictor variables does Granger cause gdp_growth. We can also reject the null hypothesis of instantaneous causality between gdp_growth, cons_growth, and the predictor variables. 
+
+
+
+```{r}
+#IRF Test
+irf_result <- irf(var_model, impulse = c("inv_growth", "gov_growth", "rdpi_growth"), response = c("gdp_growth", "cons_growth"), n.ahead = 10)
+plot(irf_result)
+```
+The first comparison is inv_growth. Early on, inv_growth has a pretty sizable impact on cons_growth, but later on, it falls off. As for gdp_growth, inv_growth doesn't really seem to have too much of an effect on that. Gov_growth on the other hand seems to have a pretty sizable impact on gdp_growth, but the same can't be said for cons_growth. At the start, rdpi_growth has a noticeable effect on cons and gdp_growth, but it becomes irrelevant later on. 
+
+```{r}
+#Plot of fitted value, data, P/ACF
+fit <- data.frame(fitted(var_model))
+
+
+par(mfrow = c(3, 2))
+plot(data.frame(my_dataframe)$gdp_growth, col = "blue", ylim = range(c(data.frame(my_dataframe)$gdp_growth, data.frame(my_dataframe)$cons_growth, fit$gdp_growth)), xlab = "Time", ylab = "Values", main = "Data vs Fitted Values")
+lines(fit$gdp_growth, col = "red")
+lines(data.frame(my_dataframe)$cons_growth, col = "green")
+lines(fit$cons_growth, col = "purple")
+legend("topright", legend = c("Gdp Growth", "GDP Growth Fitted", "Cons Growth", "Cons Growth Fitted"), col = c("blue", "red", "green", "purple"), lty = 1)
+
+acf(data.frame(my_dataframe)$gdp_growth, main = "ACF GDP Growth")
+acf(data.frame(my_dataframe)$cons_growth, main = "ACF Cons Growth")
+pacf(data.frame(my_dataframe)$gdp_growth, main = "PACF GDP Growth")
+pacf(data.frame(my_dataframe)$cons_growth, main = "PACF Cons Growth")
+```
+
+```{r}
+#Training, testing, MSE, AIC, BIC
+library(forecast)
+train_size <- round(2/3 * length(my_dataframe[, 1]))
+
+# Split the data
+train_data <- my_dataframe[, 1][1:train_size]
+test_data <- my_dataframe[, 1][(train_size + 1):length(my_dataframe[, 1])]
+
+# Forecasting
+
+forecast_1 <- predict(var_model, n.ahead=length(test_data))
+predictions <- forecast_1$endog
+mse_1 <- mean((predictions - test_data)^2)
+cat("MSE for Model 1:", mse_1, "\n")
+
+forecast_2 <- predict(var_model, n.ahead=length(train_data))
+predictions <- forecast_2$endog
+mse_1 <- mean((predictions - train_data)^2)
+cat("MSE for Model 2:", mse_1, "\n")
+
+aic <- AIC(var_model)
+bic <- BIC(var_model)
+cat("AIC:", aic, "\n")
+cat("BIC:", bic, "\n")
+
+forecast_10 <- forecast(var_model, h=10)
+
+print("10-step ahead forecast for VAR Model:")
+print(forecast_10)
+plot(forecast_10)
+```
+
+``` {r}
+#FEVD
+fevd_result <- fevd(var_model, n.ahead = 10)
+par(mar = c(3, 3, 3, 3))
+plot(fevd_result)
+#due to margins, couldn't print out full plot, so the #legend does override some of the graph
+```
+When looking at gdp_growth, it is almost entirely affected by gdp_growth and nothing else. This does align with #4 where we saw that for most models, an AR() might be better. For the cons_growth graph, we see a high reliance on cons_growth and gdp_growth. When modeling cons_growth, we could add a gdp_growth component to it if we like. As for the other graphs, they're not really that important since we're seeing what affects cons_growth and gdp_growth, but if we were using those as our predictors, it may be worth checking out. 
+
+```{r}
+#CUSUM
+par(mfrow=c(1,1))
+residuals <- roots(var_model)
+cusum <- cumsum(residuals)
+plot(cusum, type = "l", xlab = "Observation", ylab = "CUSUM", main = "CUSUM of Recursive Residuals")
+abline(h = 0, col = "red")
+```
+CUSUM starts off with a rapid increase and then it slows down as time goes on. It kind of looks like a square root function, but it is hard to tell unless the graph is bigger. This means the process is starting to stabilize and is adapting well to new observations.
+
+#Part 6
+
+When looking at the initial plots of the data, we decided upon 3 and 5 because it gave a lot of room to work with and there was a possible fit to work with. When looking at Question 3, we see for both the gdp_growth and consumption_growth, it can be better presented by an AR(3) model as opposed to an AR(5). When looking at Question 4, we see that gdp_growth doesn't really do well with other variables, so regardless of whatever we chose, the AR(3) from Question 3 was better. However, for predicting cons_growth, we see that ARDL(3, 3) with cons_growth and gdp_growth were pretty effective and the FEVD model in Question 5 also backs this up. When comparing ARDL(3, 3) vs AR(3) for the cons_growth model, we decided upon the ARDL(3, 3) just because we felt it was important to note the importance of gdp_growth. In hindsight, it may have been better to use ARDL(1, 1). While the var_models were nice to work with, we felt like this dataset wasn't really meant for the var_model since the variables weren't really related to each other enough to justify using one. 
