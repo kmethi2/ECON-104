@@ -1,5 +1,5 @@
 # Project 3
-**Description:** In this project, we analyzed two types of data, Panel Data and Qualitative Dependent Variable models. 
+**Description:** In this project, we analyzed two types of data, Panel Data and Qualitative Dependent Variable data. 
 
 * Panel Data Model
   * In this section of the project, we utilized the Grunfeld investment panel dataset from the AER package, with 5 macroeconomic variables concerning US manufacturing firms.
