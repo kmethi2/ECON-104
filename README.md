@@ -5,7 +5,7 @@
 
 * This course covered topics such as Heteroskedasticity, Multivariate Regression, Instrumental Variables, Panel Data and Binary and Dependent Models, and Regularization.
 
-* There are three projects I worked on using R. The first project dealt with taking a dataset and using different methods to create the best regression model. The second project dealt with fitting the best model to a time series dataset. The third project dealt with fitting models to Panel Data and Binary/Dependent data.
+* There are three projects I worked on using R. The first project dealt with taking a dataset and using different methods to create the best regression model. The second project dealt with fitting the best ARDL model to a time series dataset. The third project dealt with fitting models to Panel Data and Binary/Dependent data.
 
 * We found our own datasets to use for these projects.
 
